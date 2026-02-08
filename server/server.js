@@ -304,6 +304,67 @@ app.post('/api/checklist/checkin', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/checklist/tasks/:userId
+ * Returns user's custom tasks
+ * -> { tasks: [{action_id, label}] }
+ */
+app.get("/api/checklist/tasks/:userId", async (req, res) => {
+  try {
+    const userId = await requireUser(req, res);
+    if (!userId) return;
+
+    const tasks = await db.getChecklistTasks(userId);
+    res.json({ tasks });
+  } catch (e) {
+    console.error("Get tasks error:", e);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/checklist/tasks
+ * body: { userId, label }
+ */
+app.post("/api/checklist/tasks", async (req, res) => {
+  try {
+    const userId = await requireUser(req, res);
+    if (!userId) return;
+
+    const { label } = req.body;
+    if (!label || !String(label).trim()) {
+      return res.status(400).json({ error: "Missing label" });
+    }
+
+    const task = await db.addChecklistTask(userId, label);
+    res.json({ success: true, task });
+  } catch (e) {
+    console.error("Add task error:", e);
+    res.status(500).json({ error: e.message || "Internal server error" });
+  }
+});
+
+/**
+ * DELETE /api/checklist/tasks/:userId/:actionId
+ * soft-deletes a custom task
+ */
+app.delete("/api/checklist/tasks/:userId/:actionId", async (req, res) => {
+  try {
+    const userId = await requireUser(req, res);
+    if (!userId) return;
+
+    const { actionId } = req.params;
+    const ok = await db.deleteChecklistTask(userId, actionId);
+
+    if (!ok) return res.status(404).json({ error: "Task not found" });
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("Delete task error:", e);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ============================================
 // ERROR HANDLING
 // ============================================
@@ -311,6 +372,7 @@ app.post('/api/checklist/checkin', async (req, res) => {
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
+
 
 // ============================================
 // START SERVER

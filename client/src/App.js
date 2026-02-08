@@ -9,7 +9,6 @@ import Register from './components/Register';
 import { UserProvider, useUser } from './contexts/UserContext';
 import { trackPageView } from './services/api';
 import Donations from "./components/Donations";
-import "@fontsource/baloo-2";
 
 
 // Navigation component that has access to user context
