@@ -234,14 +234,14 @@ app.post('/register', (req, res) => {
     res.json({ success: true, userId });
 });
 
-app.listen(3000);
+app.listen(3001);
 ```
 
 ## Testing with cURL
 
 ### Register a user
 ```bash
-curl -X POST http://localhost:3000/api/users/register \
+curl -X POST http://localhost:3001/api/users/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -252,7 +252,7 @@ curl -X POST http://localhost:3000/api/users/register \
 
 ### Login
 ```bash
-curl -X POST http://localhost:3000/api/users/login \
+curl -X POST http://localhost:3001/api/users/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -262,13 +262,13 @@ curl -X POST http://localhost:3000/api/users/login \
 
 ### Get user activity
 ```bash
-curl http://localhost:3000/api/activity/1
+curl http://localhost:3001/api/activity/1
 ```
 
 ## Testing with Postman
 
 1. Import the following requests into Postman
-2. Set the base URL to `http://localhost:3000`
+2. Set the base URL to `http://localhost:3001`
 3. Use the examples above for request bodies
 
 ## Available Methods
@@ -310,7 +310,7 @@ if (!username || !email) {
 4. **Environment Variables**: Store sensitive config in `.env`
 ```
 DB_PATH=./data/users.db
-PORT=3000
+PORT=3001
 ```
 
 ## Customization
