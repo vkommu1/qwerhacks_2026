@@ -6,7 +6,7 @@ class Resources extends Component {
     const styles = {
       page: {
         minHeight: '100vh',
-        background: 'linear-gradient(180deg, #b2f6a6, #ffbf69)',
+        background: 'linear-gradient(180deg, #ffbf69, #b2f6a6)',
         padding: '60px 20px',
         fontFamily: "'Comic Sans MS', 'Trebuchet MS', cursive",
         color: '#3a2f1c',
