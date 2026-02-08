@@ -8,6 +8,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import { UserProvider, useUser } from './contexts/UserContext';
 import { trackPageView } from './services/api';
+import Donations from "./components/Donations";
 
 // Navigation component that has access to user context
 function Navigation() {
@@ -91,7 +92,7 @@ function AppContent() {
         <Switch>
           <Route exact path="/" component={Home} />
           <Route path="/checklist" component={Checklist} />
-          <Route path="/donations" component={Checklist} />
+          <Route path="/donations" component={Donations} />
           <Route path="/resources" component={Resources} />
           <Route path="/login" component={Login} />
           <Route path="/register" component={Register} />

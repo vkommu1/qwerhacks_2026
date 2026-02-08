@@ -1,124 +1,145 @@
 import React, { Component } from "react";
+import {
+  getCurrentUser,
+  getTodayChecklist,
+  setChecklistItem,
+  checkInToday,
+} from "../services/api"; // adjust path if needed
 
-const STORAGE_KEY = "sustainability_streak_v1";
-
-function todayKey(d = new Date()) {
-  // Use local date (not UTC) so “day” matches the user’s day.
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function yesterdayKey() {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return todayKey(d);
-}
+const DEFAULT_ACTIONS = [
+  { id: "reusable_bottle", label: "Used a reusable bottle", doneToday: false },
+  { id: "walk_transit", label: "Walked / biked / transit instead of driving", doneToday: false },
+  { id: "meatless_meal", label: "Had a meatless meal", doneToday: false },
+  { id: "no_single_use", label: "Avoided single-use plastic today", doneToday: false },
+  { id: "lights_off", label: "Turned off unused lights / unplugged", doneToday: false },
+];
 
 class Checklist extends Component {
   state = {
+    user: null,
+
+    loading: true,
+    saving: false,
+
+    // DB-backed
+    day: null,               // "YYYY-MM-DD"
     streak: 0,
-    lastCheckInDay: null, // "YYYY-MM-DD"
     checkedInToday: false,
-    actions: [
-      { id: "reusable_bottle", label: "Used a reusable bottle", doneToday: false },
-      { id: "walk_transit", label: "Walked / biked / transit instead of driving", doneToday: false },
-      { id: "meatless_meal", label: "Had a meatless meal", doneToday: false },
-      { id: "no_single_use", label: "Avoided single-use plastic today", doneToday: false },
-      { id: "lights_off", label: "Turned off unused lights / unplugged", doneToday: false },
-    ],
+
+    actions: DEFAULT_ACTIONS,
     message: "",
+    error: "",
   };
 
   componentDidMount() {
-    this.load();
-    this.rolloverIfNewDay();
+    const user = getCurrentUser();
+    this.setState({ user }, () => {
+      if (!user) {
+        this.setState({ loading: false });
+      } else {
+        this.refreshFromServer();
+      }
+    });
   }
 
-  save = () => {
-    const { streak, lastCheckInDay, actions } = this.state;
-    const payload = { streak, lastCheckInDay, actions };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  };
-
-  load = () => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
+  refreshFromServer = async () => {
+    this.setState({ loading: true, error: "", message: "" });
 
     try {
-      const parsed = JSON.parse(raw);
-      this.setState({
-        streak: parsed.streak !== undefined ? parsed.streak : 0,
-        lastCheckInDay:
-            parsed.lastCheckInDay !== undefined ? parsed.lastCheckInDay : null,
-        actions:
-            parsed.actions !== undefined ? parsed.actions : this.state.actions,
+      const data = await getTodayChecklist();
+      // data: { day, checkedInToday, streak, items:[{action_id, done}] }
+
+      const doneMap = {};
+      if (Array.isArray(data.items)) {
+        data.items.forEach((it) => {
+          doneMap[it.action_id] = it.done === 1;
         });
+      }
 
-    } catch {
-      // ignore corrupted storage
+      // Merge to keep DEFAULT_ACTIONS order and allow future new actions
+      const mergedActions = DEFAULT_ACTIONS.map((a) => ({
+        ...a,
+        doneToday: doneMap[a.id] === true,
+      }));
+
+      this.setState({
+        day: data.day || null,
+        streak: typeof data.streak === "number" ? data.streak : 0,
+        checkedInToday: !!data.checkedInToday,
+        actions: mergedActions,
+        loading: false,
+      });
+    } catch (e) {
+      this.setState({
+        loading: false,
+        error: e.message || "Failed to load checklist.",
+      });
     }
   };
 
-  rolloverIfNewDay = () => {
-    const t = todayKey();
-    // Clear "doneToday" flags each new day
-    // (If you want multi-day history later, store an array per date.)
-    if (this.state.lastCheckInDay !== t) {
-      this.setState(
-        (prev) => ({
-          actions: prev.actions.map((a) => ({ ...a, doneToday: false })),
-          checkedInToday: false,
-          message: "",
-        }),
-        this.save
-      );
+  toggleAction = async (id) => {
+    if (!this.state.user) return;
+    if (this.state.checkedInToday) return;
+
+    const current = this.state.actions.find((a) => a.id === id);
+    const nextDone = !(current && current.doneToday);
+
+    // Optimistic UI
+    this.setState((prev) => ({
+      actions: prev.actions.map((a) => (a.id === id ? { ...a, doneToday: nextDone } : a)),
+      error: "",
+      message: "",
+      saving: true,
+    }));
+
+    try {
+      await setChecklistItem(id, nextDone);
+      this.setState({ saving: false });
+    } catch (e) {
+      // Rollback if server fails
+      this.setState((prev) => ({
+        actions: prev.actions.map((a) => (a.id === id ? { ...a, doneToday: !nextDone } : a)),
+        saving: false,
+        error: e.message || "Failed to save your change.",
+      }));
     }
   };
 
-  toggleAction = (id) => {
-    this.setState(
-      (prev) => ({
-        actions: prev.actions.map((a) =>
-          a.id === id ? { ...a, doneToday: !a.doneToday } : a
-        ),
-        message: "",
-      }),
-      this.save
-    );
-  };
+  checkIn = async () => {
+    if (!this.state.user) return;
 
-  checkIn = () => {
-    const t = todayKey();
     if (this.state.checkedInToday) {
-      this.setState({ message: "You already checked in today ✅" });
+      this.setState({ message: "You already checked in today ✅", error: "" });
       return;
     }
 
     const didSomething = this.state.actions.some((a) => a.doneToday);
     if (!didSomething) {
-      this.setState({ message: "Pick at least one action to check in 🌱" });
+      this.setState({ message: "Pick at least one action to check in 🌱", error: "" });
       return;
     }
 
-    const y = yesterdayKey();
-    const last = this.state.lastCheckInDay;
+    this.setState({ saving: true, error: "", message: "" });
 
-    let newStreak = 1;
-    if (last === y) newStreak = this.state.streak + 1;
-    else if (last === t) newStreak = this.state.streak; // shouldn't happen due to checkedInToday check
-    else newStreak = 1; // missed a day -> reset
+    try {
+      const result = await checkInToday();
+      // result: { success:true, day, streak, checkedInToday:true }
 
-    this.setState(
-      {
-        streak: newStreak,
-        lastCheckInDay: t,
+      const newStreak = typeof result.streak === "number" ? result.streak : this.state.streak;
+
+      this.setState({
+        saving: false,
         checkedInToday: true,
+        day: result.day || this.state.day,
+        streak: newStreak,
         message: newStreak >= 3 ? "🔥 Nice! Your streak is growing!" : "✅ Check-in complete!",
-      },
-      this.save
-    );
+      });
+    } catch (e) {
+      this.setState({
+        saving: false,
+        error: e.message || "Check-in failed.",
+      });
+    }
   };
 
   getProgress = () => {
@@ -127,60 +148,157 @@ class Checklist extends Component {
     return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
   };
 
+  renderLoginGate() {
+    return (
+      <div
+        style={{
+          maxWidth: 520,
+          margin: "24px auto",
+          padding: 16,
+          border: "1px solid #ddd",
+          borderRadius: 12,
+        }}
+      >
+        <h2 style={{ marginTop: 0 }}>🌿 Sustainability Streak</h2>
+        <div style={{ fontSize: 14, marginTop: 8 }}>
+          You need to <strong>log in</strong> to track your checklist + streak.
+        </div>
+        <div style={{ marginTop: 12, fontSize: 13, opacity: 0.8 }}>
+          Guests can still browse resources — but streak tracking is saved per account.
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+          <a
+            href="/login"
+            style={{
+              padding: "10px 12px",
+              borderRadius: 10,
+              background: "#111",
+              color: "white",
+              textDecoration: "none",
+              fontWeight: 700,
+            }}
+          >
+            Log in
+          </a>
+          <a
+            href="/register"
+            style={{
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "1px solid #111",
+              color: "#111",
+              textDecoration: "none",
+              fontWeight: 700,
+            }}
+          >
+            Register
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   render() {
+    if (!this.state.user) {
+      return this.renderLoginGate();
+    }
+
     const { done, total, pct } = this.getProgress();
+    const { loading, saving, error, message, checkedInToday, streak, user, day } = this.state;
 
     return (
-      <div style={{ maxWidth: 520, margin: "24px auto", padding: 16, border: "1px solid #ddd", borderRadius: 12 }}>
+      <div
+        style={{
+          maxWidth: 520,
+          margin: "24px auto",
+          padding: 16,
+          border: "1px solid #ddd",
+          borderRadius: 12,
+        }}
+      >
         <h2 style={{ marginTop: 0 }}>🌿 Sustainability Streak</h2>
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontSize: 18 }}>
-            <strong>Streak:</strong> {this.state.streak} day{this.state.streak === 1 ? "" : "s"} 🔥
-          </div>
-          <div style={{ marginLeft: "auto", fontSize: 14, opacity: 0.8 }}>
-            Today: {done}/{total} ({pct}%)
-          </div>
+        <div style={{ marginBottom: 10, fontSize: 13, opacity: 0.8 }}>
+          Logged in as: {user.username || user.email || user.id}
+          {day ? ` • Day: ${day}` : ""}
         </div>
 
-        <div style={{ marginBottom: 12 }}>
-          {this.state.actions.map((a) => (
-            <label key={a.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 0" }}>
-              <input
-                type="checkbox"
-                checked={a.doneToday}
-                onChange={() => this.toggleAction(a.id)}
-                disabled={this.state.checkedInToday} // lock actions after check-in (Duolingo-ish)
-              />
-              <span>{a.label}</span>
-            </label>
-          ))}
-        </div>
+        {loading ? (
+          <div style={{ padding: "10px 0", fontSize: 14 }}>Loading...</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+              <div style={{ fontSize: 18 }}>
+                <strong>Streak:</strong> {streak} day{streak === 1 ? "" : "s"} 🔥
+              </div>
+              <div style={{ marginLeft: "auto", fontSize: 14, opacity: 0.8 }}>
+                Today: {done}/{total} ({pct}%)
+              </div>
+            </div>
 
-        <button
-          onClick={this.checkIn}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "none",
-            cursor: "pointer",
-            fontWeight: 700,
-          }}
-        >
-          {this.state.checkedInToday ? "Checked in ✅" : "Check in for today"}
-        </button>
+            {error && (
+              <div
+                style={{
+                  padding: "10px",
+                  marginBottom: 10,
+                  backgroundColor: "#fee",
+                  color: "#900",
+                  borderRadius: 8,
+                  fontSize: 14,
+                }}
+              >
+                {error}
+              </div>
+            )}
 
-        {this.state.message && (
-          <div style={{ marginTop: 10, fontSize: 14 }}>
-            {this.state.message}
-          </div>
-        )}
+            <div style={{ marginBottom: 12 }}>
+              {this.state.actions.map((a) => (
+                <label
+                  key={a.id}
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "center",
+                    padding: "8px 0",
+                    opacity: checkedInToday ? 0.85 : 1,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={a.doneToday}
+                    onChange={() => this.toggleAction(a.id)}
+                    disabled={checkedInToday || saving}
+                  />
+                  <span>{a.label}</span>
+                </label>
+              ))}
+            </div>
 
-        {!this.state.checkedInToday && (
-          <div style={{ marginTop: 14, fontSize: 13, opacity: 0.8 }}>
-            Tip: doing <strong>one</strong> small thing daily beats perfection. Keep the streak alive 🌱
-          </div>
+            <button
+              onClick={this.checkIn}
+              disabled={saving}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 10,
+                border: "none",
+                cursor: saving ? "not-allowed" : "pointer",
+                fontWeight: 700,
+                opacity: saving ? 0.7 : 1,
+              }}
+            >
+              {checkedInToday ? "Checked in ✅" : saving ? "Saving..." : "Check in for today"}
+            </button>
+
+            {message && <div style={{ marginTop: 10, fontSize: 14 }}>{message}</div>}
+
+            {!checkedInToday && (
+              <div style={{ marginTop: 14, fontSize: 13, opacity: 0.8 }}>
+                Tip: doing <strong>one</strong> small thing daily beats perfection. Keep the streak alive 🌱
+              </div>
+            )}
+          </>
         )}
       </div>
     );
