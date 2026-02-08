@@ -115,7 +115,7 @@ class Checklist extends Component {
         a.id === id ? { ...a, doneToday: nextDone } : a
       ),
       error: "",
-      message: prev.checkedInToday ? "Updated today's checklist ✅" : "",
+      message: prev.checkedInToday ? "Updated today's checklist" : "",
       saving: true,
     }));
 
@@ -139,14 +139,14 @@ class Checklist extends Component {
     if (!this.state.user) return;
 
     if (this.state.checkedInToday) {
-      this.setState({ message: "You already checked in today ✅", error: "" });
+      this.setState({ message: "You already checked in today", error: "" });
       return;
     }
 
     const didSomething = this.state.actions.some((a) => a.doneToday);
     if (!didSomething) {
       this.setState({
-        message: "Pick at least one action to check in 🌱",
+        message: "Pick at least one action to check in",
         error: "",
       });
       return;
@@ -166,8 +166,8 @@ class Checklist extends Component {
         streak: newStreak,
         message:
           newStreak >= 3
-            ? "🔥 Nice! Your streak is growing!"
-            : "✅ Check-in complete!",
+            ? "Nice! Your streak is growing!"
+            : "Check-in complete!",
       });
     } catch (e) {
       this.setState({
@@ -197,7 +197,7 @@ class Checklist extends Component {
 
     try {
       await addChecklistTask(label);
-      this.setState({ newTaskLabel: "", saving: false, message: "Task added ✅" });
+      this.setState({ newTaskLabel: "", saving: false, message: "Task added" });
       await this.refreshFromServer();
     } catch (e) {
       this.setState({ saving: false, error: e.message || "Failed to add task." });
@@ -209,7 +209,7 @@ class Checklist extends Component {
 
     try {
       await deleteChecklistTask(actionId);
-      this.setState({ saving: false, message: "Task removed ✅" });
+      this.setState({ saving: false, message: "Task removed" });
       await this.refreshFromServer();
     } catch (e) {
       this.setState({
@@ -231,9 +231,7 @@ class Checklist extends Component {
         }}
       >
         <h2 style={{ marginTop: 0 }}>
-          <span role="img" aria-label="leaf">
-            🌿
-          </span>{" "}
+          
           Sustainability Streak
         </h2>
         <div style={{ fontSize: 14, marginTop: 8 }}>

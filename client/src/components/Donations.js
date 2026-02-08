@@ -46,7 +46,7 @@ class Donations extends Component {
             }}
           >
             <h2 style={{ marginTop: 0 }}>
-              💸 Donations (for the planet… eventually)
+              Donations (for the planet… eventually)
             </h2>
 
             <p style={{ fontSize: 16, lineHeight: 1.5 }}>

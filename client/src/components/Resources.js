@@ -94,7 +94,7 @@ class Resources extends Component {
 
     return (
       <div style={styles.page}>
-        <h1 style={styles.title}>Sustainability Resources 🌱</h1>
+        <h1 style={styles.title}>Sustainability Resources</h1>
 
         <p style={styles.subtitle}>
           “Unless someone like you cares a whole awful lot, nothing is going to get better. It's not."
