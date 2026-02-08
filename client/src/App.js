@@ -22,11 +22,16 @@ class App extends Component {
             <Link to="/donations">
               <button>💸 Donations</button>
             </Link>
+
+            <Link to="/resources">
+              <button>💸 Resources</button>
+            </Link>
           </nav>
           <Switch>
             <Route exact path="/" component={Home} />
             <Route path="/checklist" component={Checklist} />
             <Route path="/donations" component={Checklist} />
+            <Route path="/resources" component={Resources} />
           </Switch>
 
         </div>
