@@ -18,6 +18,26 @@ app.use(cors(corsOptions));
 // Middleware
 app.use(express.json());
 
+
+async function requireUser(req, res) {
+  const userId = (req.body && req.body.userId) || (req.params && req.params.userId);
+  const id = parseInt(userId, 10);
+
+  if (!id) {
+    res.status(401).json({ error: 'Not logged in' });
+    return null;
+  }
+
+  const user = await db.getUser({ id });
+  if (!user) {
+    res.status(401).json({ error: 'Not logged in' });
+    return null;
+  }
+
+  return id;
+}
+
+
 // ============================================
 // ROOT ROUTE
 // ============================================
@@ -59,7 +79,7 @@ app.post('/api/users/register', async (req, res) => {
         const passwordHash = await bcrypt.hash(password, 10);
         
         // Create user
-        const userId = db.addUser(username, email, passwordHash, metadata);
+        const userId = await db.addUser(username, email, passwordHash, metadata);
         
         if (!userId) {
             return res.status(409).json({
@@ -100,7 +120,7 @@ app.post('/api/users/login', async (req, res) => {
         }
         
         // Get user
-        const user = db.getUser({ username });
+        const user = await db.getUser({ username });
         
         if (!user) {
             return res.status(401).json({
@@ -126,10 +146,10 @@ app.post('/api/users/login', async (req, res) => {
         }
         
         // Update last login
-        db.updateLastLogin(user.id);
+        await db.updateLastLogin(user.id);
         
         // Log successful login
-        db.logActivity(user.id, 'login', {
+        await db.logActivity(user.id, 'login', {
             ip: req.ip,
             userAgent: req.get('user-agent')
         });
@@ -227,6 +247,8 @@ app.put('/api/users/:id', (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+
 
 /**
  * DELETE /api/users/:id
@@ -355,6 +377,86 @@ app.get('/api/stats/:userId', (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+// ============================================
+// CHECKLIST ROUTES (LOGGED-IN ONLY)
+// ============================================
+
+/**
+ * GET /api/checklist/today/:userId
+ * Returns { day, checkedInToday, streak, items:[{action_id, done}] }
+ */
+app.get('/api/checklist/today/:userId', async (req, res) => {
+  try {
+    const userId = await requireUser(req, res);
+    if (!userId) return;
+
+    const day = db.getTodayKey();
+    await db.ensureChecklistDay(userId, day);
+
+    const dayRow = await db.getChecklistDay(userId, day);
+    const items = await db.getChecklistItems(userId, day);
+
+    res.json({
+      day,
+      checkedInToday: dayRow ? dayRow.checked_in === 1 : false,
+      streak: dayRow ? dayRow.streak : 0,
+      items,
+    });
+  } catch (e) {
+    console.error('Get checklist today error:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/checklist/item
+ * body: { userId, actionId, done }
+ */
+app.post('/api/checklist/item', async (req, res) => {
+  try {
+    const userId = await requireUser(req, res);
+    if (!userId) return;
+
+    const { actionId, done } = req.body;
+    if (!actionId) return res.status(400).json({ error: 'Missing actionId' });
+
+    const day = db.getTodayKey();
+    await db.ensureChecklistDay(userId, day);
+    await db.setChecklistItem(userId, day, actionId, !!done);
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Set checklist item error:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/checklist/checkin
+ * body: { userId }
+ */
+app.post('/api/checklist/checkin', async (req, res) => {
+  try {
+    const userId = await requireUser(req, res);
+    if (!userId) return;
+
+    const day = db.getTodayKey();
+    const items = await db.getChecklistItems(userId, day);
+    const didSomething = items.some((i) => i.done === 1);
+
+    if (!didSomething) {
+      return res.status(400).json({ error: 'Pick at least one action before check-in' });
+    }
+
+    const result = await db.checkIn(userId);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    console.error('Checkin error:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 
 /**
  * GET /api/checklist/tasks/:userId
