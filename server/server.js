@@ -19,6 +19,24 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // ============================================
+// ROOT ROUTE
+// ============================================
+
+app.get('/', (req, res) => {
+    res.json({
+        message: 'QwerHacks 2026 API Server',
+        status: 'running',
+        endpoints: {
+            users: '/api/users',
+            login: '/api/users/login',
+            register: '/api/users/register',
+            activity: '/api/activity'
+        },
+        documentation: 'https://github.com/your-repo'
+    });
+});
+
+// ============================================
 // USER ROUTES
 // ============================================
 
