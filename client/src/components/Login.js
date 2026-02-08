@@ -1,16 +1,14 @@
-// src/components/Register.js
+// src/components/Login.js
 import React, { Component } from 'react';
 import { withRouter } from 'react-router-dom';
-import { registerUser, loginUser } from '../services/api';
+import { loginUser } from '../services/api';
 
-class Register extends Component {
+class Login extends Component {
     constructor(props) {
         super(props);
         this.state = {
             username: '',
-            email: '',
             password: '',
-            confirmPassword: '',
             error: '',
             loading: false
         };
@@ -18,39 +16,22 @@ class Register extends Component {
 
     handleSubmit = async (e) => {
         e.preventDefault();
-        this.setState({ error: '' });
-
-        const { username, email, password, confirmPassword } = this.state;
-
-        // Validation
-        if (password !== confirmPassword) {
-            this.setState({ error: 'Passwords do not match' });
-            return;
-        }
-
-        if (password.length < 6) {
-            this.setState({ error: 'Password must be at least 6 characters' });
-            return;
-        }
-
-        this.setState({ loading: true });
+        this.setState({ error: '', loading: true });
 
         try {
-            await registerUser(username, email, password);
-            // After registration, log them in
-            await loginUser(username, password);
-            this.props.history.push('/'); // Redirect to home
+            await loginUser(this.state.username, this.state.password);
+            this.props.history.push('/'); // Redirect to home after successful login
             window.location.reload(); // Reload to update user context
         } catch (err) {
             this.setState({ 
-                error: err.message || 'Registration failed',
+                error: err.message || 'Login failed',
                 loading: false 
             });
         }
     };
 
     render() {
-        const { username, email, password, confirmPassword, error, loading } = this.state;
+        const { username, password, error, loading } = this.state;
 
         return (
             <div style={{ 
@@ -61,7 +42,7 @@ class Register extends Component {
                 borderRadius: '8px',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
             }}>
-                <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>Register</h2>
+                <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>Login</h2>
                 
                 {error && (
                     <div style={{
@@ -99,52 +80,12 @@ class Register extends Component {
 
                     <div style={{ marginBottom: '20px' }}>
                         <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                            Email
-                        </label>
-                        <input
-                            type="email"
-                            value={email}
-                            onChange={(e) => this.setState({ email: e.target.value })}
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '10px',
-                                fontSize: '16px',
-                                border: '1px solid #ddd',
-                                borderRadius: '4px',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
                             Password
                         </label>
                         <input
                             type="password"
                             value={password}
                             onChange={(e) => this.setState({ password: e.target.value })}
-                            required
-                            style={{
-                                width: '100%',
-                                padding: '10px',
-                                fontSize: '16px',
-                                border: '1px solid #ddd',
-                                borderRadius: '4px',
-                                boxSizing: 'border-box'
-                            }}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '20px' }}>
-                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                            Confirm Password
-                        </label>
-                        <input
-                            type="password"
-                            value={confirmPassword}
-                            onChange={(e) => this.setState({ confirmPassword: e.target.value })}
                             required
                             style={{
                                 width: '100%',
@@ -165,21 +106,21 @@ class Register extends Component {
                             padding: '12px',
                             fontSize: '16px',
                             fontWeight: 'bold',
-                            backgroundColor: loading ? '#ccc' : '#28a745',
+                            backgroundColor: loading ? '#ccc' : '#007bff',
                             color: 'white',
                             border: 'none',
                             borderRadius: '4px',
                             cursor: loading ? 'not-allowed' : 'pointer'
                         }}
                     >
-                        {loading ? 'Registering...' : 'Register'}
+                        {loading ? 'Logging in...' : 'Login'}
                     </button>
                 </form>
 
                 <p style={{ textAlign: 'center', marginTop: '20px' }}>
-                    Already have an account?{' '}
-                    <a href="/login" style={{ color: '#007bff', textDecoration: 'none' }}>
-                        Login here
+                    Don't have an account?{' '}
+                    <a href="/register" style={{ color: '#007bff', textDecoration: 'none' }}>
+                        Register here
                     </a>
                 </p>
             </div>
@@ -187,4 +128,4 @@ class Register extends Component {
     }
 }
 
-export default withRouter(Register);
+export default withRouter(Login);
