@@ -1,5 +1,7 @@
 // src/services/api.js
-const API_URL = "http://localhost:3001/api";
+// API service to communicate with the backend database
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
 // ============================================
 // USER MANAGEMENT
