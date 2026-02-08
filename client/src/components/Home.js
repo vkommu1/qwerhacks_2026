@@ -5,7 +5,7 @@ class Home extends Component {
 	render() {
 		return(
 			<div>
-				Home
+				SUCK MY BALLS
 			</div>
 		);
 	}
