@@ -38,7 +38,7 @@ class Resources extends Component {
         background: '#fff7e6',
         borderRadius: '25px',
         padding: '25px',
-        boxShadow: '0 8px 0 #e07a1f'
+        boxShadow: '0 8px 0 #fcd0aa'
       },
 
       link: {
@@ -77,7 +77,7 @@ class Resources extends Component {
         borderRadius: '25px',
         fontSize: '1.2rem',
         fontWeight: '700',
-        boxShadow: '0 6px 0 #e07a1f'
+        boxShadow: '0 6px 0 #cefcaa'
       },
 
       speechTail: {

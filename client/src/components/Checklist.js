@@ -9,6 +9,7 @@ import {
 // If your images are physically located in src/components/
 import sadLorax from "../components/sadlorax.png";
 import regularLorax from "../components/regularlorax.png";
+import happyLorax from "../components/happylorax.png";
 
 const DEFAULT_ACTIONS = [
   { id: "reusable_bottle", label: "Used a reusable bottle", doneToday: false },
@@ -214,9 +215,25 @@ class Checklist extends Component {
     const { loading, saving, error, message, checkedInToday, streak, user, day } = this.state;
 
     // ✅ Lorax logic: sad if < 50%
-    const isSad = pct < 50;
-    const loraxImg = isSad ? sadLorax : regularLorax;
-    const loraxAlt = isSad ? "Sad Lorax" : "Happy Lorax";
+    //const isSad = pct < 50;
+    //const loraxImg = isSad ? sadLorax : regularLorax;
+    //const loraxAlt = isSad ? "Sad Lorax" : "Happy Lorax";
+let loraxImg;
+let loraxAlt;
+let loraxMessage;
+    if (pct < 50) {
+  loraxImg = sadLorax;
+  loraxAlt = "Sad Lorax";
+  loraxMessage = "The Lorax is disappointed in you...";
+} else if (pct < 100) {
+  loraxImg = regularLorax;
+  loraxAlt = "Regular Lorax";
+  loraxMessage = "The Lorax approves! Keep it up.";
+} else {
+  loraxImg = happyLorax;
+  loraxAlt = "Happy Lorax";
+  loraxMessage = "Perfect! You made the Lorax proud.";
+}
 
     return (
       <div
@@ -264,9 +281,11 @@ class Checklist extends Component {
                 }}
               />
             </div>
+            
             <div style={{ textAlign: "center", fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
-              {isSad ? "The Lorax is disappointed... 🥺" : "The Lorax approves! 🌱"}
+                {loraxMessage}
             </div>
+
 
             {error && (
               <div

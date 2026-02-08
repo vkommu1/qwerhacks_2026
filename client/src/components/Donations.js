@@ -41,7 +41,7 @@ class Donations extends Component {
               border: "1px solid #ddd",
               borderRadius: 14,
               background: "#fff7e6",
-              boxShadow: "0 8px 0 #e07a1f",
+              boxShadow: "0 8px 0 #1fe069",
               textAlign: "center",
             }}
           >

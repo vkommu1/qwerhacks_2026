@@ -2,6 +2,29 @@ import React, { Component } from "react";
 import loraxImage from "./loraxmustache.jpg";
 
 class Home extends Component {
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      loraxSize: 200, // 👈 starting size (px)
+    };
+  }
+
+  componentDidMount() {
+    this.growInterval = setInterval(() => {
+      this.setState((prevState) => {
+        if (prevState.loraxSize >= 600) {
+          return null; // stop growing at max size
+        }
+        return { loraxSize: prevState.loraxSize + 10 };
+      });
+    }, 250); // grows every 1 second
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.growInterval);
+  }
+
   render() {
     return (
       <div
@@ -13,8 +36,8 @@ class Home extends Component {
           alignItems: "center",
           background: "linear-gradient(180deg, #f7b600, #f7b600)",
           textAlign: "center",
-          fontFamily: "'Baloo 2', cursive", // 👈 font applied here
-		  paddingTop: "80px",
+          fontFamily: "'Baloo 2', cursive",
+          paddingTop: "80px",
         }}
       >
         <h1
@@ -42,10 +65,10 @@ class Home extends Component {
           src={loraxImage}
           alt="The Lorax"
           style={{
-            width: "600px",
+            width: `${this.state.loraxSize}px`, // 👈 dynamic size
             maxWidth: "90vw",
             borderRadius: "20px",
-            boxShadow: "0 12px 0 #e07a1f",
+            transition: "width 1s ease", // 👈 smooth growth
           }}
         />
       </div>
