@@ -4,7 +4,7 @@ import {
   getTodayChecklist,
   setChecklistItem,
   checkInToday,
-} from "../services/api"; // adjust path if needed
+} from "../services/api";
 
 const DEFAULT_ACTIONS = [
   { id: "reusable_bottle", label: "Used a reusable bottle", doneToday: false },
@@ -22,7 +22,7 @@ class Checklist extends Component {
     saving: false,
 
     // DB-backed
-    day: null,               // "YYYY-MM-DD"
+    day: null, // "YYYY-MM-DD"
     streak: 0,
     checkedInToday: false,
 
@@ -79,16 +79,18 @@ class Checklist extends Component {
 
   toggleAction = async (id) => {
     if (!this.state.user) return;
-    if (this.state.checkedInToday) return;
 
     const current = this.state.actions.find((a) => a.id === id);
     const nextDone = !(current && current.doneToday);
 
     // Optimistic UI
     this.setState((prev) => ({
-      actions: prev.actions.map((a) => (a.id === id ? { ...a, doneToday: nextDone } : a)),
+      actions: prev.actions.map((a) =>
+        a.id === id ? { ...a, doneToday: nextDone } : a
+      ),
       error: "",
-      message: "",
+      // If they already checked in, reassure them changes still save
+      message: prev.checkedInToday ? "Updated today's checklist ✅" : "",
       saving: true,
     }));
 
@@ -98,9 +100,12 @@ class Checklist extends Component {
     } catch (e) {
       // Rollback if server fails
       this.setState((prev) => ({
-        actions: prev.actions.map((a) => (a.id === id ? { ...a, doneToday: !nextDone } : a)),
+        actions: prev.actions.map((a) =>
+          a.id === id ? { ...a, doneToday: !nextDone } : a
+        ),
         saving: false,
         error: e.message || "Failed to save your change.",
+        message: "",
       }));
     }
   };
@@ -125,7 +130,8 @@ class Checklist extends Component {
       const result = await checkInToday();
       // result: { success:true, day, streak, checkedInToday:true }
 
-      const newStreak = typeof result.streak === "number" ? result.streak : this.state.streak;
+      const newStreak =
+        typeof result.streak === "number" ? result.streak : this.state.streak;
 
       this.setState({
         saving: false,
@@ -261,14 +267,13 @@ class Checklist extends Component {
                     gap: 10,
                     alignItems: "center",
                     padding: "8px 0",
-                    opacity: checkedInToday ? 0.85 : 1,
+                    opacity: checkedInToday ? 0.9 : 1,
                   }}
                 >
                   <input
                     type="checkbox"
                     checked={a.doneToday}
                     onChange={() => this.toggleAction(a.id)}
-                    disabled={checkedInToday || saving}
                   />
                   <span>{a.label}</span>
                 </label>
@@ -288,7 +293,7 @@ class Checklist extends Component {
                 opacity: saving ? 0.7 : 1,
               }}
             >
-              {checkedInToday ? "Checked in ✅" : saving ? "Saving..." : "Check in for today"}
+              {checkedInToday ? "Checked in ✅ (edits allowed)" : saving ? "Saving..." : "Check in for today"}
             </button>
 
             {message && <div style={{ marginTop: 10, fontSize: 14 }}>{message}</div>}
