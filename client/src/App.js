@@ -9,12 +9,23 @@ import Register from './components/Register';
 import { UserProvider, useUser } from './contexts/UserContext';
 import { trackPageView } from './services/api';
 import Donations from "./components/Donations";
-import "@fontsource/baloo-2";
 
 
 // Navigation component that has access to user context
+// Navigation component that has access to user context
 function Navigation() {
   const { user, logout } = useUser();
+
+  const buttonStyle = {
+    padding: "10px 20px",
+    backgroundColor: "rgba(76, 175, 80, 0.3)",
+    color: "black",
+    border: "none",
+    borderRadius: "50px", // Medium rounded
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: "600"
+  };
 
   return (
     <nav style={{ 
@@ -27,19 +38,19 @@ function Navigation() {
     }}>
       <div style={{ display: "flex", gap: 12 }}>
         <Link to="/">
-          <button>🏠 Home</button>
+          <button style={buttonStyle}>Home</button>
         </Link>
 
         <Link to="/checklist">
-          <button>🌱 Checklist</button>
+          <button style={buttonStyle}>Daily Check-in!</button>
         </Link>
 
         <Link to="/donations">
-          <button>💸 Donations</button>
+          <button style={buttonStyle}>Donations :)</button>
         </Link>
 
         <Link to="/resources">
-          <button>📚 Resources</button>
+          <button style={buttonStyle}>Resources</button>
         </Link>
       </div>
 
@@ -49,15 +60,15 @@ function Navigation() {
             <span style={{ fontSize: "14px" }}>
               👋 Welcome, <strong>{user.username}</strong>
             </span>
-            <button onClick={logout}>Logout</button>
+            <button style={buttonStyle} onClick={logout}>Logout</button>
           </>
         ) : (
           <>
             <Link to="/login">
-              <button>Login</button>
+              <button style={buttonStyle}>Login</button>
             </Link>
             <Link to="/register">
-              <button>Register</button>
+              <button style={buttonStyle}>Register</button>
             </Link>
           </>
         )}
