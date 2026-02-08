@@ -7,7 +7,6 @@ class UserDatabase {
       else console.log('Database initialized successfully');
     });
 
-    // Enable foreign keys
     this.db.run('PRAGMA foreign_keys = ON');
 
     this.ready = false;
@@ -25,7 +24,7 @@ class UserDatabase {
     return new Promise((resolve, reject) => {
       this.db.run(query, params, function (err) {
         if (err) reject(err);
-        else resolve(this); // lastID, changes
+        else resolve(this);
       });
     });
   }
@@ -98,13 +97,13 @@ class UserDatabase {
       ON user_activity(timestamp);
     `;
 
-    // ---- NEW: checklist tables ----
+    // ---- checklist tables ----
     const createChecklistDayTable = `
       CREATE TABLE IF NOT EXISTS checklist_day (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        day TEXT NOT NULL,                -- "YYYY-MM-DD"
-        checked_in INTEGER DEFAULT 0,     -- 0/1
+        day TEXT NOT NULL,
+        checked_in INTEGER DEFAULT 0,
         streak INTEGER DEFAULT 0,
         UNIQUE(user_id, day),
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -115,9 +114,9 @@ class UserDatabase {
       CREATE TABLE IF NOT EXISTS checklist_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        day TEXT NOT NULL,                -- "YYYY-MM-DD"
+        day TEXT NOT NULL,
         action_id TEXT NOT NULL,
-        done INTEGER DEFAULT 0,           -- 0/1
+        done INTEGER DEFAULT 0,
         UNIQUE(user_id, day, action_id),
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
       )
@@ -130,6 +129,25 @@ class UserDatabase {
       CREATE INDEX IF NOT EXISTS idx_checklist_items_user_day
       ON checklist_items(user_id, day);
     `;
+    // ---- NEW: custom checklist tasks (per user) ----
+const createChecklistTasksTable = `
+  CREATE TABLE IF NOT EXISTS checklist_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    action_id TEXT NOT NULL,     -- unique string id
+    label TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, action_id),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+  )
+`;
+
+const createChecklistTasksIndexes = `
+  CREATE INDEX IF NOT EXISTS idx_checklist_tasks_user
+  ON checklist_tasks(user_id);
+`;
+
+
 
     try {
       await this.run(createUsersTable);
@@ -139,6 +157,14 @@ class UserDatabase {
       await this.run(createChecklistDayTable);
       await this.run(createChecklistItemsTable);
       await this.run(createChecklistIndexes);
+      await this.run(createChecklistTasksTable);
+      await this.run(createChecklistTasksIndexes);
+
+
+      // ---- NUDGE: add columns (safe for existing DB) ----
+      // these will throw if column already exists; we ignore
+      await this.run(`ALTER TABLE users ADD COLUMN last_nudge_day TEXT`).catch(() => {});
+      await this.run(`ALTER TABLE users ADD COLUMN nudge_opt_out INTEGER DEFAULT 0`).catch(() => {});
     } catch (error) {
       console.error('Error creating tables:', error);
     }
@@ -207,7 +233,7 @@ class UserDatabase {
   }
 
   async updateUser(userId, updates) {
-    const allowedFields = ['username', 'email', 'password_hash', 'metadata'];
+    const allowedFields = ['username', 'email', 'password_hash', 'metadata', 'last_nudge_day', 'nudge_opt_out'];
     const updateFields = [];
     const values = [];
 
@@ -256,6 +282,64 @@ class UserDatabase {
     await this.run(query, [userId]);
     await this.logActivity(userId, 'login');
   }
+
+
+    // ============================================
+    // CUSTOM CHECKLIST TASKS (per user)
+    // ============================================
+
+    async getCustomTasks(userId) {
+    await this.ensureReady();
+    return await this.all(
+        `
+        SELECT action_id, label
+        FROM checklist_tasks
+        WHERE user_id = ? AND active = 1
+        ORDER BY created_at ASC
+        `,
+        [userId]
+    );
+    }
+
+    async addCustomTask(userId, label) {
+    await this.ensureReady();
+    const trimmed = (label || "").trim();
+    if (!trimmed) throw new Error("Task label cannot be empty");
+
+    // generate a stable-ish id: custom_<timestamp>_<rand>
+    const actionId = `custom_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    await this.run(
+        `
+        INSERT INTO checklist_tasks (user_id, action_id, label, active)
+        VALUES (?, ?, ?, 1)
+        `,
+        [userId, actionId, trimmed]
+    );
+
+    await this.logActivity(userId, "custom_task_added", { actionId, label: trimmed });
+
+    return { action_id: actionId, label: trimmed };
+    }
+
+    async deleteCustomTask(userId, actionId) {
+    await this.ensureReady();
+    const result = await this.run(
+        `
+        UPDATE checklist_tasks
+        SET active = 0
+        WHERE user_id = ? AND action_id = ?
+        `,
+        [userId, actionId]
+    );
+
+    if (result.changes > 0) {
+        await this.logActivity(userId, "custom_task_deleted", { actionId });
+        return true;
+    }
+    return false;
+    }
+
 
   // ============================================
   // ACTIVITY
@@ -349,7 +433,7 @@ class UserDatabase {
   }
 
   // ============================================
-  // NEW: CHECKLIST + STREAK (per user, per day)
+  // CHECKLIST + STREAK
   // ============================================
 
   async ensureChecklistDay(userId, day) {
@@ -383,6 +467,59 @@ class UserDatabase {
     await this.run(query, [userId, day, actionId, done ? 1 : 0]);
   }
 
+  // ============================================
+// CUSTOM CHECKLIST TASKS
+// ============================================
+
+async getChecklistTasks(userId) {
+  await this.ensureReady();
+  return await this.all(
+    `
+    SELECT action_id, label
+    FROM checklist_tasks
+    WHERE user_id = ?
+    ORDER BY created_at ASC
+    `,
+    [userId]
+  );
+}
+
+async addChecklistTask(userId, label) {
+  await this.ensureReady();
+
+  // Create a stable-ish action_id
+  const base = String(label)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  const actionId = `custom_${base}_${Date.now()}`;
+
+  await this.run(
+    `
+    INSERT INTO checklist_tasks (user_id, action_id, label)
+    VALUES (?, ?, ?)
+    `,
+    [userId, actionId, label.trim()]
+  );
+
+  return { action_id: actionId, label: label.trim() };
+}
+
+async deleteChecklistTask(userId, actionId) {
+  await this.ensureReady();
+  const result = await this.run(
+    `
+    DELETE FROM checklist_tasks
+    WHERE user_id = ? AND action_id = ?
+    `,
+    [userId, actionId]
+  );
+  return result.changes > 0;
+}
+
+
   async getChecklistItems(userId, day) {
     await this.ensureReady();
     const query = `
@@ -400,7 +537,6 @@ class UserDatabase {
 
     await this.ensureChecklistDay(userId, today);
 
-    // If already checked in today, return existing
     const existingToday = await this.getChecklistDay(userId, today);
     if (existingToday && existingToday.checked_in === 1) {
       return { day: today, streak: existingToday.streak || 0, checkedInToday: true };
@@ -416,10 +552,84 @@ class UserDatabase {
       [newStreak, userId, today]
     );
 
-    // Log activity (optional but fun)
     await this.logActivity(userId, 'checkin', { day: today, streak: newStreak });
 
     return { day: today, streak: newStreak, checkedInToday: true };
+  }
+
+  
+
+  // ============================================
+  // ---- NUDGE EMAIL SUPPORT ----
+  // ============================================
+
+  /**
+   * Returns the most recent day the user checked in (checked_in = 1).
+   * If they never checked in, returns null.
+   */
+  async getLastCheckInDay(userId) {
+    await this.ensureReady();
+    const row = await this.get(
+      `
+      SELECT day
+      FROM checklist_day
+      WHERE user_id = ? AND checked_in = 1
+      ORDER BY day DESC
+      LIMIT 1
+      `,
+      [userId]
+    );
+    return row ? row.day : null;
+  }
+
+  /**
+   * Users eligible for a nudge today:
+   * - have email
+   * - not opted out
+   * - have NOT checked in today
+   * - have NOT been nudged today
+   */
+  async getUsersToNudge(todayStr) {
+    await this.ensureReady();
+
+    // Checked in today?
+    // We'll LEFT JOIN checklist_day on today.
+    const users = await this.all(
+      `
+      SELECT
+        u.id,
+        u.username,
+        u.email,
+        u.last_nudge_day,
+        u.nudge_opt_out,
+        cd.checked_in as checked_in_today
+      FROM users u
+      LEFT JOIN checklist_day cd
+        ON cd.user_id = u.id AND cd.day = ?
+      WHERE
+        u.email IS NOT NULL
+        AND u.email <> ''
+        AND COALESCE(u.nudge_opt_out, 0) = 0
+      `,
+      [todayStr]
+    );
+
+    return users.filter((u) => {
+      const checkedInToday = u.checked_in_today === 1;
+      const nudgedToday = u.last_nudge_day === todayStr;
+      return !checkedInToday && !nudgedToday;
+    });
+  }
+
+  async markNudgedToday(userId, todayStr) {
+    await this.ensureReady();
+    await this.run(`UPDATE users SET last_nudge_day = ? WHERE id = ?`, [todayStr, userId]);
+    await this.logActivity(userId, 'nudge_email_sent', { day: todayStr });
+  }
+
+  async setNudgeOptOut(userId, optOut) {
+    await this.ensureReady();
+    await this.run(`UPDATE users SET nudge_opt_out = ? WHERE id = ?`, [optOut ? 1 : 0, userId]);
   }
 
   // ============================================
