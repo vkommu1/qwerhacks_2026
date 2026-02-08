@@ -13,7 +13,7 @@ app.use(express.json());
 
 // Helper: require logged-in user (we validate user exists in DB)
 async function requireUser(req, res) {
-  const userId = req.body.userId || req.params.userId;
+  const userId = (req.body && req.body.userId) || (req.params && req.params.userId);
   const id = parseInt(userId, 10);
 
   if (!id) {
@@ -49,9 +49,16 @@ app.post('/api/users/register', async (req, res) => {
       return res.status(409).json({ error: 'User already exists' });
     }
 
-    await db.logActivity(userId, 'registered', { ip: req.ip, userAgent: req.get('user-agent') });
+    await db.logActivity(userId, 'registered', {
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+    });
 
-    res.status(201).json({ success: true, userId, message: 'User registered successfully' });
+    res.status(201).json({
+      success: true,
+      userId,
+      message: 'User registered successfully',
+    });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -69,16 +76,26 @@ app.post('/api/users/login', async (req, res) => {
     const user = await db.getUser({ username });
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
-    const validPassword = user.password_hash ? await bcrypt.compare(password, user.password_hash) : false;
+    const validPassword = user.password_hash
+      ? await bcrypt.compare(password, user.password_hash)
+      : false;
+
     if (!validPassword) {
-      await db.logActivity(user.id, 'failed_login', { ip: req.ip, reason: 'invalid_password' });
+      await db.logActivity(user.id, 'failed_login', {
+        ip: req.ip,
+        reason: 'invalid_password',
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     await db.updateLastLogin(user.id);
     delete user.password_hash;
 
-    res.json({ success: true, user, message: 'Login successful' });
+    res.json({
+      success: true,
+      user,
+      message: 'Login successful',
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -162,7 +179,9 @@ app.get('/api/users/search/:term', async (req, res) => {
 app.post('/api/activity', async (req, res) => {
   try {
     const { userId, action, details } = req.body;
-    if (!userId || !action) return res.status(400).json({ error: 'userId and action are required' });
+    if (!userId || !action) {
+      return res.status(400).json({ error: 'userId and action are required' });
+    }
 
     await db.logActivity(userId, action, details);
     res.json({ success: true, message: 'Activity logged' });
@@ -229,7 +248,7 @@ app.get('/api/checklist/today/:userId', async (req, res) => {
       day,
       checkedInToday: dayRow ? dayRow.checked_in === 1 : false,
       streak: dayRow ? dayRow.streak : 0,
-      items
+      items,
     });
   } catch (e) {
     console.error('Get checklist today error:', e);

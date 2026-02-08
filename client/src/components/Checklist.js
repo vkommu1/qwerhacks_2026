@@ -6,6 +6,10 @@ import {
   checkInToday,
 } from "../services/api";
 
+// If your images are physically located in src/components/
+import sadLorax from "../components/sadlorax.png";
+import regularLorax from "../components/regularlorax.png";
+
 const DEFAULT_ACTIONS = [
   { id: "reusable_bottle", label: "Used a reusable bottle", doneToday: false },
   { id: "walk_transit", label: "Walked / biked / transit instead of driving", doneToday: false },
@@ -56,7 +60,6 @@ class Checklist extends Component {
         });
       }
 
-      // Merge to keep DEFAULT_ACTIONS order and allow future new actions
       const mergedActions = DEFAULT_ACTIONS.map((a) => ({
         ...a,
         doneToday: doneMap[a.id] === true,
@@ -83,13 +86,11 @@ class Checklist extends Component {
     const current = this.state.actions.find((a) => a.id === id);
     const nextDone = !(current && current.doneToday);
 
-    // Optimistic UI
     this.setState((prev) => ({
       actions: prev.actions.map((a) =>
         a.id === id ? { ...a, doneToday: nextDone } : a
       ),
       error: "",
-      // If they already checked in, reassure them changes still save
       message: prev.checkedInToday ? "Updated today's checklist ✅" : "",
       saving: true,
     }));
@@ -98,7 +99,6 @@ class Checklist extends Component {
       await setChecklistItem(id, nextDone);
       this.setState({ saving: false });
     } catch (e) {
-      // Rollback if server fails
       this.setState((prev) => ({
         actions: prev.actions.map((a) =>
           a.id === id ? { ...a, doneToday: !nextDone } : a
@@ -128,8 +128,6 @@ class Checklist extends Component {
 
     try {
       const result = await checkInToday();
-      // result: { success:true, day, streak, checkedInToday:true }
-
       const newStreak =
         typeof result.streak === "number" ? result.streak : this.state.streak;
 
@@ -165,7 +163,9 @@ class Checklist extends Component {
           borderRadius: 12,
         }}
       >
-        <h2 style={{ marginTop: 0 }}>🌿 Sustainability Streak</h2>
+        <h2 style={{ marginTop: 0 }}>
+          <span role="img" aria-label="leaf">🌿</span> Sustainability Streak
+        </h2>
         <div style={{ fontSize: 14, marginTop: 8 }}>
           You need to <strong>log in</strong> to track your checklist + streak.
         </div>
@@ -213,6 +213,11 @@ class Checklist extends Component {
     const { done, total, pct } = this.getProgress();
     const { loading, saving, error, message, checkedInToday, streak, user, day } = this.state;
 
+    // ✅ Lorax logic: sad if < 50%
+    const isSad = pct < 50;
+    const loraxImg = isSad ? sadLorax : regularLorax;
+    const loraxAlt = isSad ? "Sad Lorax" : "Happy Lorax";
+
     return (
       <div
         style={{
@@ -223,7 +228,9 @@ class Checklist extends Component {
           borderRadius: 12,
         }}
       >
-        <h2 style={{ marginTop: 0 }}>🌿 Sustainability Streak</h2>
+        <h2 style={{ marginTop: 0 }}>
+          <span role="img" aria-label="leaf">🌿</span> Sustainability Streak
+        </h2>
 
         <div style={{ marginBottom: 10, fontSize: 13, opacity: 0.8 }}>
           Logged in as: {user.username || user.email || user.id}
@@ -236,11 +243,29 @@ class Checklist extends Component {
           <>
             <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
               <div style={{ fontSize: 18 }}>
-                <strong>Streak:</strong> {streak} day{streak === 1 ? "" : "s"} 🔥
+                <strong>Streak:</strong> {streak} day{streak === 1 ? "" : "s"}
               </div>
               <div style={{ marginLeft: "auto", fontSize: 14, opacity: 0.8 }}>
                 Today: {done}/{total} ({pct}%)
               </div>
+            </div>
+
+            {/* ✅ Lorax image based on progress */}
+            <div style={{ display: "flex", justifyContent: "center", margin: "10px 0 14px" }}>
+              <img
+                src={loraxImg}
+                alt={loraxAlt}
+                style={{
+                  width: 220,
+                  maxWidth: "90%",
+                  height: "auto",
+                  borderRadius: 12,
+                  border: "1px solid #eee",
+                }}
+              />
+            </div>
+            <div style={{ textAlign: "center", fontSize: 13, opacity: 0.8, marginBottom: 12 }}>
+              {isSad ? "The Lorax is disappointed... 🥺" : "The Lorax approves! 🌱"}
             </div>
 
             {error && (
@@ -293,14 +318,15 @@ class Checklist extends Component {
                 opacity: saving ? 0.7 : 1,
               }}
             >
-              {checkedInToday ? "Checked in ✅ (edits allowed)" : saving ? "Saving..." : "Check in for today"}
+              {checkedInToday ? "Checked in (edits allowed)" : saving ? "Saving..." : "Check in for today"}
             </button>
 
             {message && <div style={{ marginTop: 10, fontSize: 14 }}>{message}</div>}
 
             {!checkedInToday && (
               <div style={{ marginTop: 14, fontSize: 13, opacity: 0.8 }}>
-                Tip: doing <strong>one</strong> small thing daily beats perfection. Keep the streak alive 🌱
+                Tip: doing <strong>one</strong> small thing daily beats perfection. Keep the streak alive{" "}
+                <span role="img" aria-label="seedling">🌱</span>
               </div>
             )}
           </>
